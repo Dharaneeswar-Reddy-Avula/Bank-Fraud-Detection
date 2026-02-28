@@ -10,7 +10,7 @@ import pandas as pd
 import shap
 import numpy as np
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Depends, status, Body
+from fastapi import FastAPI, HTTPException, Depends, status, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
@@ -32,7 +32,6 @@ from models import (
     UserCreate,
     UserResponse,
     Token,
-    LoginRequest,
     TransactionCreate,
     TransactionInDB,
     FraudLog,
@@ -240,16 +239,34 @@ async def register(user_data: UserCreate):
     return new_user
 
 @app.post("/auth/login", response_model=Token)
-async def login(login_data: LoginRequest):
-    user = await users_collection.find_one({"email": login_data.email})
-    if not user or not verify_password(login_data.password, user["password_hash"]):
+async def login(request: Request):
+    data = None
+    try:
+        data = await request.json()
+    except Exception:
+        data = None
+    email = None
+    password = None
+    if isinstance(data, dict):
+        email = data.get("email") or data.get("username")
+        password = data.get("password")
+    if not email or not password:
+        try:
+            form = await request.form()
+            email = form.get("email") or form.get("username")
+            password = form.get("password")
+        except Exception:
+            pass
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Invalid login payload")
+    user = await users_collection.find_one({"email": email})
+    if not user or not verify_password(password, user["password_hash"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    access_token = create_access_token(data={"sub": user["email"], "role": "USER"})
+    access_token = create_access_token(data={"sub": email, "role": "USER"})
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/auth/admin/login", response_model=Token)

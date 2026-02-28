@@ -35,7 +35,8 @@ class TokenData(BaseModel):
     email: Optional[str] = None
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: Optional[EmailStr] = None
+    username: Optional[EmailStr] = None
     password: str
 
 # Transaction Models
