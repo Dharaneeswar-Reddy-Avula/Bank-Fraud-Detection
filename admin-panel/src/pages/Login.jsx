@@ -13,7 +13,7 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await adminAuthApi.login(formData);
+      const response = await adminAuthApi.login({ email: formData.email, password: formData.password });
       localStorage.setItem('admin_token', response.data.access_token);
       toast.success('Admin authenticated successfully');
       navigate('/');

@@ -27,16 +27,16 @@ app = FastAPI(title="FraudShield AI Banking System")
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "*",   # keep for hackathon, remove later if needed
+    "https://bank-fraud-detection-vjvm.vercel.app",
+    "https://bank-fraud-detection-iota.vercel.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
 )
 
 # Preflight handler (CRITICAL for Render)

@@ -1,37 +1,18 @@
 import os
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.security import OAuth2PasswordBearer
-from auth import decode_token
+from fastapi import APIRouter, HTTPException
 from models import TransactionCreate
-from database import users_collection, transactions_collection, admins_collection
+from database import users_collection, transactions_collection
 from services.ml import ensemble_predict_proba, explain_transaction
 from twilio.rest import Client
-from motor.motor_asyncio import AsyncIOMotorCursor
 
 router = APIRouter()
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
-
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    payload = decode_token(token)
-    if payload is None:
-        raise HTTPException(status_code=401)
-    email = payload.get("sub")
-    user = await users_collection.find_one({"email": email})
+async def select_demo_user():
+    user = await users_collection.find_one({"status": "ACTIVE"})
     if not user:
-        raise HTTPException(status_code=401)
+        raise HTTPException(400, "No active user found")
     return user
-
-async def get_current_admin(token: str = Depends(oauth2_scheme)):
-    payload = decode_token(token)
-    if payload is None or payload.get("role") != "ADMIN":
-        raise HTTPException(status_code=401)
-    email = payload.get("sub")
-    admin = await admins_collection.find_one({"email": email})
-    if not admin:
-        raise HTTPException(status_code=401)
-    return admin
 
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
@@ -57,7 +38,8 @@ def send_whatsapp_alert(phone, name, msg=None):
         return False
 
 @router.post("/transaction/send")
-async def send_money(tx: TransactionCreate, user=Depends(get_current_user)):
+async def send_money(tx: TransactionCreate):
+    user = await select_demo_user()
     if user["status"] == "HOLD":
         raise HTTPException(403, "Account on HOLD")
     if user["balance"] < tx.amount:
@@ -109,7 +91,7 @@ async def send_money(tx: TransactionCreate, user=Depends(get_current_user)):
     }
 
 @router.get("/admin/stats")
-async def admin_stats(admin=Depends(get_current_admin)):
+async def admin_stats():
     total_users = await users_collection.count_documents({})
     active = await users_collection.count_documents({"status": "ACTIVE"})
     hold = await users_collection.count_documents({"status": "HOLD"})
@@ -124,13 +106,15 @@ async def admin_stats(admin=Depends(get_current_admin)):
     }
 
 @router.get("/user/me")
-async def read_users_me(current_user=Depends(get_current_user)):
-    current_user["_id"] = str(current_user["_id"])
-    return current_user
+async def read_users_me():
+    user = await select_demo_user()
+    user["_id"] = str(user["_id"])
+    return user
 
 @router.get("/transactions/history")
-async def get_history(current_user=Depends(get_current_user)):
-    cursor = transactions_collection.find({"user_id": str(current_user["_id"])}).sort("timestamp", -1)
+async def get_history():
+    user = await select_demo_user()
+    cursor = transactions_collection.find({"user_id": str(user["_id"])}).sort("timestamp", -1)
     history = await cursor.to_list(length=100)
     for tx in history:
         tx["_id"] = str(tx["_id"])

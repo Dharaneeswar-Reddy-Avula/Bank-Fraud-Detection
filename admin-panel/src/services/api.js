@@ -15,14 +15,9 @@ api.interceptors.request.use((config) => {
 });
 
 export const adminAuthApi = {
-  login: (formData) => {
-    const params = new URLSearchParams();
-    params.append('username', formData.email);
-    params.append('password', formData.password);
-    return api.post('/auth/admin/login', params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    });
-  },
+  login: (data) => api.post('/auth/admin/login', data, {
+    headers: { 'Content-Type': 'application/json' }
+  }),
 };
 
 export const adminDataApi = {
